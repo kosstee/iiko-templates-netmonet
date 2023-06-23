@@ -9,84 +9,23 @@
 @inherits TemplateBase<IBillCheque>
 @{
     var order = Model.Order;
+    var group = Model.CommonInfo.Group.Name;
+    var section = order.Table.Section.Name;
+    var terminal = Model.CommonInfo.CurrentTerminal;
     var transliterationMap = new Dictionary<string, string> {
-        {"а", "a"},
-        {"б", "b"},
-        {"в", "v"},
-        {"г", "g"},
-        {"д", "d"},
-        {"е", "e"},
-        {"ё", "e"},
-        {"ж", "zh"},
-        {"з", "z"},
-        {"и", "i"},
-        {"й", "y"},
-        {"к", "k"},
-        {"л", "l"},
-        {"м", "m"},
-        {"н", "n"},
-        {"о", "o"},
-        {"п", "p"},
-        {"р", "r"},
-        {"с", "s"},
-        {"т", "t"},
-        {"у", "y"},
-        {"ф", "ph"},
-        {"х", "h"},
-        {"ц", "c"},
-        {"ч", "ch"},
-        {"ш", "sh"},
-        {"щ", "sh"},
-        {"ы", "i"},
-        {"э", "e"},
-        {"ю", "u"},
-        {"я", "ya"},
-        {"a", "a"},
-        {"b", "b"},
-        {"c", "c"},
-        {"d", "d"},
-        {"e", "e"},
-        {"f", "f"},
-        {"g", "g"},
-        {"h", "h"},
-        {"i", "i"},
-        {"j", "j"},
-        {"k", "k"},
-        {"l", "l"},
-        {"m", "m"},
-        {"n", "n"},
-        {"o", "o"},
-        {"p", "p"},
-        {"q", "q"},
-        {"r", "r"},
-        {"s", "s"},
-        {"t", "t"},
-        {"u", "u"},
-        {"v", "v"},
-        {"w", "w"},
-        {"x", "x"},
-        {"y", "y"},
-        {"z", "z"}
+        {"а", "a"},  {"б", "b"},  {"в", "v"},  {"г", "g"}, {"д", "d"},
+        {"е", "e"},  {"ё", "e"},  {"ж", "zh"}, {"з", "z"}, {"и", "i"},
+        {"й", "y"},  {"к", "k"},  {"л", "l"},  {"м", "m"}, {"н", "n"},
+        {"о", "o"},  {"п", "p"},  {"р", "r"},  {"с", "s"}, {"т", "t"},
+        {"у", "y"},  {"ф", "ph"}, {"х", "h"},  {"ц", "c"}, {"ч", "ch"},
+        {"ш", "sh"}, {"щ", "sh"}, {"ы", "i"},  {"э", "e"}, {"ю", "u"},
+        {"я", "ya"}, {"a", "a"},  {"b", "b"},  {"c", "c"}, {"d", "d"},
+        {"e", "e"},  {"f", "f"},  {"g", "g"},  {"h", "h"}, {"i", "i"},
+        {"j", "j"},  {"k", "k"},  {"l", "l"},  {"m", "m"}, {"n", "n"},
+        {"o", "o"},  {"p", "p"},  {"q", "q"},  {"r", "r"}, {"s", "s"},
+        {"t", "t"},  {"u", "u"},  {"v", "v"},  {"w", "w"}, {"x", "x"},
+        {"y", "y"},  {"z", "z"}
         };
-
-    var urls = new Dictionary<string, string> {
-        {"1", "3&s"},
-        {"2", "&c"},   
-        {"3", "&en"},
-        {"4", "XXXXXX"}, // код заведения
-        {"5", "&tn"},
-        {"6", "&wpid=XXXXXX"}, // WPID
-        {"7", "&checkout"}, // GUID order
-        };
-
-    var codeMatches = Regex.Match(order.Waiter.GetNameOrEmpty(), ".*(\\d{6}).*");
-    string code = null;
-    bool codeFound = codeMatches.Groups.Count == 2;
-    if (codeFound) { // means success
-        code = codeMatches.Groups[1].Value;
-        }
-
-    var fullSum = order.GetFullSum() - order.DiscountItems.Where(di => !di.Type.PrintProductItemInPrecheque).Sum(di => di.GetDiscountSum());
 
     var transliteratedName = string.Concat(order.Waiter.GetNameOrEmpty().ToLower().Select(c => {
         string saveString;
@@ -96,6 +35,69 @@
             return "_";
             }
             }));
+
+    var fullSum = order.GetFullSum() - order.DiscountItems.Where(di => !di.Type.PrintProductItemInPrecheque).Sum(di => di.GetDiscountSum());
+
+    var urls = new Dictionary<string, string> {
+        {"source", "?o=3"},
+        {"sum", string.Concat("&s=", fullSum)},
+        {"number", string.Concat("&c=", order.Number)},
+        {"table", string.Concat("&tn=", order.Table.Number)},
+        {"name", string.Concat("&en=", transliteratedName)},
+        {"guid", string.Concat("&checkout=", order.OrderId)},
+        {"wp", "&wpid="}
+        };
+    
+    var code = "XXXXXX";         // код заведения
+    var wpid = "XXXXXXX";        // WPID
+                                 //
+    bool useGroupCode = false;   // true для группового кода
+    bool qrPayOn = false;        // true для QR-pay
+    bool useGrouping = false;    // true для разделения по группам
+    
+    // groupDictionary заполняется только при useGrouping = true
+    // указать имя группы вместо "Группа 1", "Группа 2" и тд.
+    var groupDictionary = new Dictionary<string, Tuple<string, string, bool, bool>> {        
+        {"Группа 1", Tuple.Create(
+            "XXXXXX",    // код заведения
+            "XXXXXXX",   // WPID
+            false,       // true для группового кода
+            false        // true для QR-pay
+            )},
+        {"Группа 2", Tuple.Create(
+            "XXXXXX",    // код заведения
+            "XXXXXXX",   // WPID
+            false,       // true для группового кода
+            false        // true для QR-pay
+            )}
+        };
+
+    var netmonetHeader = "Отзывы и чаевые";
+    var url = "https://netmonet.co/tip/";    
+    var urlParams = string.Concat(urls["source"], urls["sum"], urls["number"], urls["table"], urls["name"]);
+
+    if (useGrouping && groupDictionary.ContainsKey(group)) {
+        code = groupDictionary[group].Item1;
+        wpid = groupDictionary[group].Item2;
+        useGroupCode = groupDictionary[group].Item3;
+        qrPayOn = groupDictionary[group].Item4;
+        }
+
+    var codeMatches = Regex.Match(order.Waiter.GetNameOrEmpty(), ".*(\\d{6}).*");
+    bool codeFound = codeMatches.Groups.Count == 2;
+    if (codeFound) {
+        code = codeMatches.Groups[1].Value;
+        urlParams = string.Concat(urls["source"], urls["sum"], urls["number"], urls["table"]);
+        }
+            
+    if (useGroupCode && !codeFound) {
+        url = string.Concat(url, "group/");
+        }
+  
+    if (qrPayOn) {
+        netmonetHeader = "Счет.Чаевые.Отзыв.";
+        urlParams = string.Concat(urlParams, urls["guid"]);
+        }
 }
 
 <doc>
@@ -124,7 +126,12 @@
     {
         <left>@string.Format(Resources.AdditionalServiceHeaderOrderItemsAddedPattern, FormatLongDateTime(Model.CommonInfo.CurrentTime))</left>
     }
-    <left>@string.Format(Resources.BillHeaderWaiterPattern, order.Waiter.GetNameOrEmpty())</left>
+
+    @if (!string.IsNullOrWhiteSpace(order.ExternalNumber))
+    {
+        <left>@string.Format(Resources.BillHeaderOrderExternalNumberPattern, order.ExternalNumber)</left>
+    }
+
     <left>@string.Format(Resources.BillHeaderWaiterPattern, @Regex.Replace(order.Waiter.GetNameOrEmpty(), "\\d{6}", ""))</left>
 
     @foreach (var clientInfo in
@@ -170,22 +177,21 @@
     </table>
     @* Body (end) *@
 
-@* Footer (begin) *@
-@if (codeFound) {
-        <f2><center>@("Счет.Чаевые.Отзыв.")</center></f2>
+    @* Footer (begin) *@
+    <np />
+
+    @* Netmonet (begin) *@
+    @if (!useGrouping || groupDictionary.ContainsKey(group)) {
+        <f2><center>@netmonetHeader</center></f2>
         <f2><center>@("нетмонет")</center></f2>
-        
-        <qrcode size="small" correction="low">https://netmonet.co/tip/@code?o=@urls["1"]=@fullSum@urls["2"]=@order.Number@urls["5"]=@order.Table.Number@urls["6"]@urls["7"]=@order.OrderId</qrcode>
+        <np />
+        <qrcode size="small" correction="low">@url@code@urlParams@urls["wp"]@wpid</qrcode>
+        <np />
         <center>@("Наведите камеру на QR-код")</center>
-<center>@("или введите " + @code + " на netmonet.co")</center>
-        } else {
-            <f2><center>@("Счет.Чаевые.Отзыв.")</center></f2>
-            <f2><center>@("нетмонет")</center></f2>           
-            
-            <qrcode size="small" correction="low">https://netmonet.co/tip/@urls["4"]?o=@urls["1"]=@fullSum@urls["2"]=@order.Number@urls["5"]=@order.Table.Number@urls["6"]@urls["3"]=@transliteratedName@urls["7"]=@order.OrderId</qrcode>
-            <center>@("Наведите камеру на QR-код")</center>
-<center>@("или введите " + @urls["4"] + " на netmonet.co")</center>            
-            }
+        <center>@("или введите " + @code + " на netmonet.co")</center>
+        }
+    @* Netmonet (end) *@
+    
     @if (Model.AdditionalServiceChequeInfo == null)
     {
         <whitespace-preserve>@Raw(string.Join(Environment.NewLine, Model.Extensions.BeforeFooter))</whitespace-preserve>
@@ -375,7 +381,7 @@
 
             foreach (var orderEntry in orderItemGroup.Key.GetNotDeletedChildren().Where(orderEntry => ModifiersFilter(orderEntry, orderItemGroup.Key)).ToList())
             {
-var productName = orderEntry.ProductCustomName ?? orderEntry.Product.Name;
+                var productName = orderEntry.ProductCustomName ?? orderEntry.Product.Name;
                 <ct><whitespace-preserve>@(additionalSpace + "  " + productName)</whitespace-preserve></ct>
 
                 if (orderEntry.Amount != 1m)

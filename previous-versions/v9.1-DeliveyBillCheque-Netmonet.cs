@@ -1,8 +1,11 @@
 @using System
+@using System.Collections.Generic
 @using System.Linq
 @using Resto.Front.PrintTemplates.Cheques.Razor
 @using Resto.Front.PrintTemplates.Cheques.Razor.TemplateModels
 @using Resto.Front.PrintTemplates.RmsEntityWrappers
+@using System.Text.RegularExpressions
+
 @inherits TemplateBase<IDeliveryBillCheque>
 <doc bell="">
     @Header()
@@ -16,12 +19,19 @@
     var customer = delivery.Customer;
     var address = delivery.Address;
     var cafeSetup = Model.CommonInfo.CafeSetup;
-  
+    var order = delivery.Order;
+
     <whitespace-preserve>@Raw(string.Join(Environment.NewLine, Model.Extensions.BeforeHeader))</whitespace-preserve>
     <left><split><whitespace-preserve>@cafeSetup.BillHeader</whitespace-preserve></split></left>
     <np />
     <center>@Resources.DeliveryBill</center>
     <center>@string.Format(Resources.BillHeaderOrderNumberPattern, delivery.Number)</center>
+
+    if (!string.IsNullOrWhiteSpace(order.ExternalNumber))
+    {
+        <left><wrap>@string.Format(Resources.BillHeaderOrderExternalNumberPattern, order.ExternalNumber)</wrap></left>
+    }
+
     <np />
     <left>@Resources.ConsignorColon</left>
     <left>@cafeSetup.LegalName</left>
@@ -31,14 +41,10 @@
     <left>@customer.NameSurname()</left>
     <left>@delivery.Phone</left>
     <np />
-    
+
     if (!delivery.IsSelfService)
     {
-        <left>
-            <split>
-                @string.Format(Resources.AddressFormat, address.StringView())
-            </split>
-        </left>
+        <left><split>@string.Format(Resources.AddressFormat, address.StringView())</split></left>
         <left>@(string.IsNullOrWhiteSpace(address.AdditionalInfo) ? string.Empty : address.AdditionalInfo)</left>
         if (!string.IsNullOrWhiteSpace(address.Region))
         {
@@ -46,12 +52,12 @@
         }
         <np />
     }
-    
+
     if (!string.IsNullOrWhiteSpace(customer.CardNumber))
     {
         <left>@string.Format(Resources.DiscountCardNumber, customer.CardNumber)</left>
     }
-    
+
     <table>
         <columns>
             <column autowidth="" />
@@ -65,7 +71,7 @@
                 <ct>@Resources.CourierColon</ct>
                 if (delivery.Courier != null)
                 {
-                    <ct>@delivery.Courier.Name</ct>
+                    <ct>@Regex.Replace(delivery.Courier.Name, "\\d{6}", "")</ct>
                 }
                 else
                 {
@@ -100,100 +106,25 @@
 {
     var delivery = Model.Delivery;
     var cafeSetup = Model.CommonInfo.CafeSetup;
-    var couriersDictionary = new Dictionary<string, string> {
-        {"Курьер 1", "XXXXXX"},
-        {"Курьер 2", "XXXXXX"},
-        {"Курьер 3", "XXXXXX"},
-        {"Курьер 4", "XXXXXX"},
-        {"Курьер 5", "XXXXXX"},
-        {"Курьер 6", "XXXXXX"},
-        {"Курьер 7", "XXXXXX"},
-        {"Курьер 8", "XXXXXX"},
-        {"Курьер 9", "XXXXXX"},
-        {"Курьер 10", "XXXXXX"},
-        {"Курьер 11", "XXXXXX"},
-        {"Курьер 12", "XXXXXX"},
-        {"Курьер 13", "XXXXXX"},
-        {"Курьер 14", "XXXXXX"},
-        {"Курьер 15", "XXXXXX"},
-        {"Курьер 16", "XXXXXX"},
-        {"Курьер 17", "XXXXXX"},
-        {"Курьер 18", "XXXXXX"},
-        {"Курьер 19", "XXXXXX"},
-        {"Курьер 20", "XXXXXX"}
-        };
-
     var order = delivery.Order;
-    var transliterationMap = new Dictionary <string, string> {
-        {"а", "a"},
-        {"б", "b"},
-        {"в", "v"},
-        {"г", "g"},
-        {"д", "d"},
-        {"е", "e"},
-        {"ё", "e"},
-        {"ж", "zh"},
-        {"з", "z"},
-        {"и", "i"},
-        {"й", "y"},
-        {"к", "k"},
-        {"л", "l"},
-        {"м", "m"},
-        {"н", "n"},
-        {"о", "o"},
-        {"п", "p"},
-        {"р", "r"},
-        {"с", "s"},
-        {"т", "t"},
-        {"у", "y"},
-        {"ф", "ph"},
-        {"х", "h"},
-        {"ц", "c"},
-        {"ч", "ch"},
-        {"ш", "sh"},
-        {"щ", "sh"},
-        {"ы", "i"},
-        {"э", "e"},
-        {"ю", "u"},
-        {"я", "ya"},
-        {"a", "a"},
-        {"b", "b"},
-        {"c", "c"},
-        {"d", "d"},
-        {"e", "e"},
-        {"f", "f"},
-        {"g", "g"},
-        {"h", "h"},
-        {"i", "i"},
-        {"j", "j"},
-        {"k", "k"},
-        {"l", "l"},
-        {"m", "m"},
-        {"n", "n"},
-        {"o", "o"},
-        {"p", "p"},
-        {"q", "q"},
-        {"r", "r"},
-        {"s", "s"},
-        {"t", "t"},
-        {"u", "u"},
-        {"v", "v"},
-        {"w", "w"},
-        {"x", "x"},
-        {"y", "y"},
-        {"z", "z"}
+    var group = Model.CommonInfo.Group.Name;
+    var terminal = Model.CommonInfo.CurrentTerminal;
+    var transliterationMap = new Dictionary<string, string> {
+        {"а", "a"},  {"б", "b"},  {"в", "v"},  {"г", "g"}, {"д", "d"},
+        {"е", "e"},  {"ё", "e"},  {"ж", "zh"}, {"з", "z"}, {"и", "i"},
+        {"й", "y"},  {"к", "k"},  {"л", "l"},  {"м", "m"}, {"н", "n"},
+        {"о", "o"},  {"п", "p"},  {"р", "r"},  {"с", "s"}, {"т", "t"},
+        {"у", "y"},  {"ф", "ph"}, {"х", "h"},  {"ц", "c"}, {"ч", "ch"},
+        {"ш", "sh"}, {"щ", "sh"}, {"ы", "i"},  {"э", "e"}, {"ю", "u"},
+        {"я", "ya"}, {"a", "a"},  {"b", "b"},  {"c", "c"}, {"d", "d"},
+        {"e", "e"},  {"f", "f"},  {"g", "g"},  {"h", "h"}, {"i", "i"},
+        {"j", "j"},  {"k", "k"},  {"l", "l"},  {"m", "m"}, {"n", "n"},
+        {"o", "o"},  {"p", "p"},  {"q", "q"},  {"r", "r"}, {"s", "s"},
+        {"t", "t"},  {"u", "u"},  {"v", "v"},  {"w", "w"}, {"x", "x"},
+        {"y", "y"},  {"z", "z"}
         };
 
-    var urls = new Dictionary <string, string> {
-        {"1", "3&s"},
-        {"2", "&c"},   
-        {"3", "&en"},
-        {"4", "XXXXXX"}, // код заведения
-        {"5", "&tn"},
-        {"6", "&wpid=XXXXXX"} // WPID
-        };
- 
-    var transliteratedName = string.Concat(order.Waiter.GetNameOrEmpty().ToLower().Select(c => {
+    var transliteratedName = string.Concat(delivery.Courier.GetNameOrEmpty().ToLower().Select(c => {
         string saveString;
     if (transliterationMap.TryGetValue(c.ToString(), out saveString)) {
         return saveString;
@@ -202,14 +133,64 @@
             }
             }));
 
-    var terminal = Model.CommonInfo.CurrentTerminal;
-    var fullSum = order.GetFullSum();
+    var fullSum = order.GetFullSum() - order.DiscountItems.Where(di => !di.Type.PrintProductItemInPrecheque).Sum(di => di.GetDiscountSum());
+
+    var urls = new Dictionary<string, string> {
+        {"source", "?o=3"},
+        {"sum", string.Concat("&s=", fullSum)},
+        {"number", string.Concat("&c=", order.Number)},
+        {"table", string.Concat("&tn=", order.Table.Number)},
+        {"name", string.Concat("&en=", transliteratedName)},
+        {"wp", "&wpid="}
+        };
+    
+    var code = "XXXXXX";         // код заведения
+    var wpid = "XXXXXXX";        // WPID
+                                 //
+    bool useGroupCode = false;   // true для группового кода
+    bool useGrouping = false;    // true для разделения по группам
+    
+    // groupDictionary заполняется только при useGrouping = true
+    // указать имя группы вместо "Группа 1", "Группа 2" и тд.
+    var groupDictionary = new Dictionary<string, Tuple<string, string, bool>> {        
+        {"Группа 1", Tuple.Create(
+            "XXXXXX",    // код заведения
+            "XXXXXXX",   // WPID
+            false        // true для группового кода
+            )},
+        {"Группа 2", Tuple.Create(
+            "XXXXXX",    // код заведения
+            "XXXXXXX",   // WPID
+            false        // true для группового кода
+            )}
+        };
+
+    var url = "https://netmonet.co/tip/";    
+    var urlParams = string.Concat(urls["source"], urls["sum"], urls["number"], urls["table"], urls["name"]);
+
+    if (useGrouping && groupDictionary.ContainsKey(group)) {
+        code = groupDictionary[group].Item1;
+        wpid = groupDictionary[group].Item2;
+        useGroupCode = groupDictionary[group].Item3;
+        }
+
+    var codeMatches = Regex.Match(delivery.Courier.GetNameOrEmpty(), ".*(\\d{6}).*");
+    bool codeFound = codeMatches.Groups.Count == 2;
+    if (codeFound) {
+        code = codeMatches.Groups[1].Value;
+        urlParams = string.Concat(urls["source"], urls["sum"], urls["number"], urls["table"]);
+        }
+        
+    if (useGroupCode && !codeFound) {
+        url = string.Concat(url, "group/");
+        }
+
     <np />
     <np />
     <split>
         <whitespace-preserve>@(string.Format(Resources.FreightDeliveriedFormat, delivery.IsSelfService
             ? delivery.DeliveryOperator.GetNameOrEmpty()
-            : delivery.Courier == null ? string.Empty : delivery.Courier.Name) + "\u00a0")</whitespace-preserve>
+            : delivery.Courier == null ? string.Empty : @Regex.Replace(delivery.Courier.Name, "\\d{6}", "")) + "\u00a0")</whitespace-preserve>
         <line symbols="_" />
     </split>
     <np />
@@ -219,12 +200,12 @@
     </split>
     <np />
     <left>@Resources.DeliveryProcessingCommentsColon</left>
-    
+
     if (!string.IsNullOrWhiteSpace(delivery.Comment))
     {
         <left>@delivery.Comment</left>
     }
-    
+
     <line symbols="_" />
     <line symbols="_" />
     <line symbols="_" />
@@ -239,19 +220,18 @@
     <np />
     <whitespace-preserve>@Raw(string.Join(Environment.NewLine, Model.Extensions.AfterFooter))</whitespace-preserve>
     <np />
-    if (couriersDictionary.ContainsKey(delivery.Courier.GetNameOrEmpty())) {
-            <f2><center>@("Чаевые нетмонет")</center></f2>
-            <center>@("Наведите камеру на QR-код")</center>
-            <qrcode size="small" correction="low">https://netmonet.co/tip/@couriersDictionary[delivery.Courier.GetNameOrEmpty()]?o=@urls["1"]=@fullSum@urls["2"]=@order.Number@urls["5"]=@order.Table.Number@urls["6"]</qrcode>
-            <center>@("или введите код на сайте netmonet.co")</center>
-            <f1><center>@couriersDictionary[delivery.Courier.GetNameOrEmpty()]</center></f1>
-            } else {
-                <f2><center>@("Чаевые нетмонет")</center></f2>
-                <center>@("Наведите камеру на QR-код")</center>
-                <qrcode size="small" correction="low">https://netmonet.co/tip/@urls["4"]?o=@urls["1"]=@fullSum@urls["2"]=@order.Number@urls["5"]=@order.Table.Number@urls["3"]=@transliteratedName</qrcode>
-                <center>@("или введите код на сайте netmonet.co")</center>
-                <f1><center>@urls["4"]</center></f1>
-                }
+
+    @* Netmonet (begin) *@
+    if (!useGrouping || groupDictionary.ContainsKey(group)) {
+        <f2><center>@("Отзывы и чаевые")</center></f2>
+        <f2><center>@("нетмонет")</center></f2>
+        <np />
+        <qrcode size="small" correction="low">@url@code@urlParams@urls["wp"]@wpid</qrcode>
+        <np />
+        <center>@("Наведите камеру на QR-код")</center>
+        <center>@("или введите " + @code + " на netmonet.co")</center>
+        }
+    @* Netmonet (end) *@
 }
 
 @helper Body()
@@ -299,7 +279,7 @@
                     string.Format(Resources.PaymentWithDiscountSplitFormatPayment, replaceDiscount.PrintableName),
                     CalculatePercent(fullSum, paymentSum),
                     paymentSum,
-                    string.Empty, 
+                    string.Empty,
                     false));
             }
             //добавляем информацию о скидке: не показывается, если скидки нет
@@ -309,7 +289,7 @@
                     string.Format(Resources.PaymentWithDiscountSplitFormatDiscount, replaceDiscount.PrintableName),
                     CalculatePercent(fullSum, discountSum),
                     discountSum,
-                    string.Empty, 
+                    string.Empty,
                     false));
             }
         }
@@ -317,10 +297,10 @@
         {
             nonCategorizedDiscounts.Add(new NonCategorizedDiscountItem(
                 replaceDiscount.PrintableName,
-                  CalculatePercent(fullSum, paymentItem.Sum),
-                  paymentItem.Sum,
-                  string.Empty, 
-                  replaceDiscount.DiscountBySum));
+                CalculatePercent(fullSum, paymentItem.Sum),
+                paymentItem.Sum,
+                string.Empty,
+                replaceDiscount.DiscountBySum));
         }
     }
 
@@ -352,7 +332,7 @@
                         <ct>@discount.Name</ct>
                         <ct>@FormatPercent(-discount.Percent)</ct>
                     }
-                    
+
                     <ct>@FormatMoney(-discount.Sum)</ct>
                     if (!string.IsNullOrWhiteSpace(discount.CardNumber))
                     {
@@ -381,7 +361,7 @@
         }
     }
     <pair left="@Resources.BillFooterTotalLower" right="@FormatMoney(resultSum)" />
-  
+
     var payments = order.Payments.Where(payment => !payment.Type.ProccessAsDiscount).ToList();
     var containsAnyPaymentsOrPrePayments = payments.Any() || order.PrePayments.Any();
     var paymentsSumLessThanResultOrderSum = payments.Concat(order.PrePayments).Sum(p => p.Sum) < resultSum;
@@ -458,27 +438,32 @@
             <ct>@Resources.ProductPrice</ct>
             <ct>@Resources.ResultSum</ct>
             <linecell />
-           
-            @Guest(Model.Delivery.Order.Guests.First(), Model.Delivery.SplitBetweenPersons)
+
             @if (Model.Delivery.SplitBetweenPersons)
             {
+                var firstGuest = Model.Delivery.Order.Guests.First();
+                @Guest(firstGuest.Name, firstGuest.Items.ToList())
                 foreach (var guest in Model.Delivery.Order.Guests.Skip(1))
                 {
                     <linecell symbols=" " />
-                    @Guest(guest, true)
+                    @Guest(guest.Name, guest.Items.ToList())
                 }
+            }
+            else
+            {
+                @Guest(null, Model.Delivery.Order.Guests.SelectMany(g => g.Items).ToList())
             }
         </cells>
     </table>
 }
 
-@helper Guest(IGuest guest, bool splitBetweenPersons)
+@helper Guest(string guestName, ICollection<IOrderItem> items)
 {
-    if (splitBetweenPersons && guest.Name != string.Empty)
+    if (!string.IsNullOrWhiteSpace(guestName))
     {
-        <c colspan="4">@guest.Name</c>
+        <c colspan="4">@guestName</c>
     }
-    foreach (var comboGroup in guest.Items.Where(item => item.DeletionInfo == null).GroupBy(i => i.Combo))
+    foreach (var comboGroup in items.Where(item => item.DeletionInfo == null).GroupBy(i => i.Combo))
     {
         var combo = comboGroup.Key;
         if (combo != null)
@@ -488,17 +473,17 @@
             <ct>@FormatMoney(combo.Price)</ct>
             <ct>@FormatMoney(combo.Price * combo.Amount)</ct>
         }
-        foreach (var orderItem in comboGroup.OrderBy(i=>i.OrderRank))
+        foreach (var orderItem in comboGroup.OrderBy(i => i.OrderRank))
         {
             @OrderItem(orderItem, combo != null)
         }
     }
-    if (splitBetweenPersons && guest.Name != string.Empty)
+    if (!string.IsNullOrWhiteSpace(guestName))
     {
         <c colspan="3" />
         <c><line /></c>
-        <c colspan="2">@string.Format(Resources.BillFooterTotalGuestPattern, guest.Name)</c>
-        <c colspan="2"><right>@FormatMoney(guest.Items.SelectMany(item => item.ExpandIncludedEntries()).Sum(item => item.Cost))</right></c>
+        <c colspan="2">@string.Format(Resources.BillFooterTotalGuestPattern, guestName)</c>
+        <c colspan="2"><right>@FormatMoney(items.SelectMany(item => item.ExpandIncludedEntries()).Sum(item => item.Cost))</right></c>
     }
 }
 
@@ -512,17 +497,18 @@
     {
         <c colspan="4"><whitespace-preserve>@(additionalSpace + string.Format("{0} {1}", productItem.CompoundsInfo.ModifierSchemaName, productItem.ProductSize == null ? string.Empty : productItem.ProductSize.Name))</whitespace-preserve></c>
 
-        // для разделенной пиццы комменты печатаем под схемой 
-        if (commentText != null )
+        // для разделенной пиццы комменты печатаем под схемой
+        if (commentText != null)
         {
-             <c colspan="4"><whitespace-preserve>@(additionalSpace + "  " + commentText)</whitespace-preserve></c>
+            <c colspan="4"><whitespace-preserve>@(additionalSpace + "  " + commentText)</whitespace-preserve></c>
         }
-    
+
         // у пиццы не может быть удаленных модификаторов, поэтому берем весь список
         foreach (var orderEntry in productItem.ModifierEntries.Where(orderEntry => ModifiersFilter(orderEntry, productItem, true)))
         {
-            <c colspan="4"><whitespace-preserve>@(additionalSpace + "  " + orderEntry.Product.Name)</whitespace-preserve></c>
-            
+            var productName = orderEntry.ProductCustomName ?? orderEntry.Product.Name;
+            <c colspan="4"><whitespace-preserve>@(additionalSpace + "  " + productName)</whitespace-preserve></c>
+
             if (orderEntry.Cost != 0m)
             {
                 <c colspan="2"><whitespace-preserve><right>@(additionalSpace + string.Format("{0} {1} x", FormatAmount(orderEntry.Amount), orderEntry.Product.MeasuringUnit.Name))</right></whitespace-preserve></c>
@@ -534,11 +520,12 @@
                 <c colspan="2"><whitespace-preserve><right>@(additionalSpace + string.Format("{0} {1}  ", FormatAmount(orderEntry.Amount), orderEntry.Product.MeasuringUnit.Name))</right></whitespace-preserve></c>
                 <c colspan="2" />
             }
-    
+
+            @PrintOrderEntryAllergens(orderEntry)
             @CategorizedDiscountsForOrderEntry(orderEntry, isPartOfCombo)
         }
     }
-    
+
     if (productItem != null && productItem.CompoundsInfo != null)
     {
         <c colspan="4"><whitespace-preserve>@(additionalSpace + " 1/2 " + GetOrderEntryNameWithProductSize(productItem))</whitespace-preserve></c>
@@ -548,9 +535,9 @@
         <c colspan="4"><whitespace-preserve>@(additionalSpace + GetOrderEntryNameWithProductSize(item))</whitespace-preserve></c>
         @* для обычных блюд перед списком модификаторов *@
         if (commentText != null)
-          {
-             <c colspan="4"><whitespace-preserve>@(additionalSpace + "  " + commentText)</whitespace-preserve></c>
-          }
+        {
+            <c colspan="4"><whitespace-preserve>@(additionalSpace + "  " + commentText)</whitespace-preserve></c>
+        }
     }
 
     if (!isPartOfCombo)
@@ -565,13 +552,19 @@
         <c colspan="2" />
     }
 
+    if (productItem != null)
+    {
+        @PrintOrderEntryAllergens(productItem)
+    }
+
     @CategorizedDiscountsForOrderEntry(item, isPartOfCombo)
 
     foreach (var orderEntry in item.GetNotDeletedChildren().Where(orderEntry => ModifiersFilter(orderEntry, item))
         .Where(orderEntry => orderEntry.Cost > 0 || orderEntry.Product.PrechequePrintable).ToList())
     {
-        <c colspan="4"><whitespace-preserve>@(additionalSpace + "  " + orderEntry.Product.Name)</whitespace-preserve></c>
-        
+        var productName = orderEntry.ProductCustomName ?? orderEntry.Product.Name;
+        <c colspan="4"><whitespace-preserve>@(additionalSpace + "  " + productName)</whitespace-preserve></c>
+
         if (orderEntry.Cost != 0m)
         {
             <c colspan="2"><right>@string.Format("{0} {1} x", FormatAmount(orderEntry.Amount), orderEntry.Product.MeasuringUnit.Name)</right></c>
@@ -584,6 +577,7 @@
             <c colspan="2" />
         }
 
+        @PrintOrderEntryAllergens(orderEntry)
         @CategorizedDiscountsForOrderEntry(orderEntry, isPartOfCombo)
     }
 }
@@ -599,11 +593,11 @@
                                    Name = discountItem.Type.PrintableName,
                                    Percent = Math.Round(CalculatePercent(entry.Cost, discountSum)),
                                    Sum = discountSum,
-                                   CardNumber = (discountItem.CardInfo != null && !string.IsNullOrWhiteSpace(discountItem.CardInfo.MaskedCard))
-                                    ? discountItem.CardInfo.MaskedCard
-                                    : string.Empty,
+                                   CardNumber = discountItem.CardInfo != null && !string.IsNullOrWhiteSpace(discountItem.CardInfo.MaskedCard)
+                                       ? discountItem.CardInfo.MaskedCard
+                                       : string.Empty,
                                    discountItem.Type.DiscountBySum
-                                };
+                               };
 
     foreach (var discount in categorizedDiscounts)
     {
@@ -615,12 +609,21 @@
         {
             <c colspan="3"><whitespace-preserve>@(additionalSpace + string.Format("   {0} ({1})", discount.Name, FormatPercent(-discount.Percent)))</whitespace-preserve></c>
         }
-        
+
         <ct>@FormatMoney(-discount.Sum)</ct>
         if (!string.IsNullOrWhiteSpace(discount.CardNumber))
         {
             <c colspan="4">@string.Format(Resources.CardPattern, discount.CardNumber)</c>
         }
+    }
+}
+
+@helper PrintOrderEntryAllergens(IOrderEntry orderEntry)
+{
+    var totalAllergens = orderEntry.Allergens.ToArray();
+    if (totalAllergens.Any())
+    {
+        <c colspan="0">@( string.Format(Resources.AllergenGroupsFormat, string.Join(", ", totalAllergens)) )</c>
     }
 }
 
@@ -648,9 +651,31 @@
         if (orderEntry.Cost > 0m)
             return true;
 
-        return orderEntry.Product.PrechequePrintable;
+        if (!orderEntry.Product.PrechequePrintable)
+            return false;
+
+        var modifierEntry = orderEntry as IModifierEntry;
+        if (modifierEntry == null)
+            return true;
+
+        if (modifierEntry.ChildModifier == null)
+            return true;
+
+        if (!modifierEntry.ChildModifier.HideIfDefaultAmount)
+            return true;
+
+        var amountPerItem = modifierEntry.ChildModifier.AmountIndependentOfParentAmount
+            ? modifierEntry.Amount
+            : modifierEntry.Amount / GetParentAmount(parent, onlyCommonModifiers);
+
+        return amountPerItem != modifierEntry.ChildModifier.DefaultAmount;
     }
-    
+
+    private static decimal GetParentAmount(IOrderItem parent, bool onlyCommonModifiers)
+    {
+        return onlyCommonModifiers ? parent.Amount * 2 : parent.Amount;
+    }
+
     private static string GetPaymentItemName(IPaymentItem payment)
     {
         var nameFormat = payment.Type.Group == PaymentGroup.Card
@@ -682,9 +707,10 @@
 
     private static string GetOrderEntryNameWithProductSize(IOrderEntry orderEntry)
     {
+        var productName = orderEntry.ProductCustomName ?? orderEntry.Product.Name;
         var productItem = orderEntry as IProductItem;
         return productItem == null || productItem.ProductSize == null || productItem.CompoundsInfo != null
-            ? orderEntry.Product.Name
-            : string.Format(Resources.ProductNameWithSizeFormat, productItem.Product.Name, productItem.ProductSize.Name);
+            ? productName
+            : string.Format(Resources.ProductNameWithSizeFormat, productName, productItem.ProductSize.Name);
     }
 }

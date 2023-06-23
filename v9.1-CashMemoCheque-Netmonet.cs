@@ -137,7 +137,6 @@
     <pair left="@Resources.HeadCashRegisterShift" right="@session.Number" />
     <pair left="@Resources.CafeSessionOpenDate" right="@FormatLongDateTime(session.OpenTime)" />
     <pair left="@Resources.CurrentDate" right="@FormatLongDateTime(chequeInfo.OperationTime)" />
-    <pair left="@string.Format(Resources.BillHeaderCashierPattern, chequeInfo.Cashier.GetNameOrEmpty())" right="@string.Format(Resources.BillHeaderOrderNumberPattern, order.Number)" />
     <pair left="@string.Format(Resources.BillHeaderCashierPattern, @Regex.Replace(chequeInfo.Cashier.GetNameOrEmpty(), "\\d{6}", ""))" right="@string.Format(Resources.BillHeaderOrderNumberPattern, order.Number)" />
   
     @* body *@

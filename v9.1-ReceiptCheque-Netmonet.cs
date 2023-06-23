@@ -11,6 +11,8 @@
     var order = Model.Order;
     var sum = chequeTask.Sales.Sum(sale => sale.GetCost() - sale.DiscountSum + sale.IncreaseSum).RoundMoney();
     var group = Model.CommonInfo.Group.Name;
+    var section = order.Table.Section.Name;
+    var terminal = Model.CommonInfo.CurrentTerminal;
     var transliterationMap = new Dictionary<string, string> {
         {"а", "a"},  {"б", "b"},  {"в", "v"},  {"г", "g"}, {"д", "d"},
         {"е", "e"},  {"ё", "e"},  {"ж", "zh"}, {"з", "z"}, {"и", "i"},
@@ -25,13 +27,6 @@
         {"t", "t"},  {"u", "u"},  {"v", "v"},  {"w", "w"}, {"x", "x"},
         {"y", "y"},  {"z", "z"}
         };
-
-    var codeMatches = Regex.Match(order.Waiter.GetNameOrEmpty(), ".*(\\d{6}).*");
-    string code = null;
-    bool codeFound = codeMatches.Groups.Count == 2;
-    if (codeFound) {
-        code = codeMatches.Groups[1].Value;
-        }
 
     var transliteratedName = string.Concat(order.Waiter.GetNameOrEmpty().ToLower().Select(c => {
         string saveString;
@@ -53,9 +48,7 @@
         {"wp", "&wpid="}
         };
     
-    /*  _  _ _/__ _  _  _  _ _/_ */
-    /* / //_'/ / / //_// //_'/   */
-    var fallbackCode = "XXXXXX"; // код заведения
+    var code = "XXXXXX";         // код заведения
     var wpid = "XXXXXXX";        // WPID
                                  //
     bool useGroupCode = false;   // true для группового кода
@@ -77,13 +70,19 @@
         };
 
     var url = "https://netmonet.co/tip/";    
-    var personalUrlParams = string.Concat(urls["source"], urls["sum"], urls["number"], urls["table"]);
-    var fallbackUrlParams = string.Concat(personalUrlParams, urls["name"]);
+    var urlParams = string.Concat(urls["source"], urls["sum"], urls["number"], urls["table"], urls["name"]);
 
     if (useGrouping && groupDictionary.ContainsKey(group)) {
-        fallbackCode = groupDictionary[group].Item1;
+        code = groupDictionary[group].Item1;
         wpid = groupDictionary[group].Item2;
         useGroupCode = groupDictionary[group].Item3;
+        }
+
+    var codeMatches = Regex.Match(order.Waiter.GetNameOrEmpty(), ".*(\\d{6}).*");
+    bool codeFound = codeMatches.Groups.Count == 2;
+    if (codeFound) {
+        code = codeMatches.Groups[1].Value;
+        urlParams = string.Concat(urls["source"], urls["sum"], urls["number"], urls["table"]);
         }
         
     if (useGroupCode && !codeFound) {
@@ -113,7 +112,6 @@
         <left>@string.Format(Resources.BillHeaderOrderExternalNumberPattern, order.ExternalNumber)</left>
     }
 
-    <left>@string.Format(Resources.BillHeaderWaiterPattern, order.Waiter.GetNameOrEmpty())</left>
     <left>@string.Format(Resources.BillHeaderWaiterPattern, @Regex.Replace(order.Waiter.GetNameOrEmpty(), "\\d{6}", ""))</left>
     @if (order.TabName != null)
     {
@@ -157,21 +155,17 @@
     }
     <whitespace-preserve>@Raw(string.Join(Environment.NewLine, Model.Extensions.AfterCheque))</whitespace-preserve>
 
-        @if (!useGrouping || groupDictionary.ContainsKey(group)) {
-        if (codeFound) {
-            <f2><center>@("Отзывы и чаевые")</center></f2>
-            <f2><center>@("нетмонет")</center></f2>
-            <qrcode size="small" correction="low">@url@code@personalUrlParams@urls["wp"]@wpid</qrcode>
-            <center>@("Наведите камеру на QR-код")</center>
-            <center>@("или введите " + @code + " на netmonet.co")</center>
-            } else {
-                <f2><center>@("Отзывы и чаевые")</center></f2>
-                <f2><center>@("нетмонет")</center></f2>
-                <qrcode size="small" correction="low">@url@fallbackCode@fallbackUrlParams@urls["wp"]@wpid</qrcode>
-                <center>@("Наведите камеру на QR-код")</center>
-                <center>@("или введите " + @fallbackCode + " на netmonet.co")</center>
-                }
+    @* Netmonet (begin) *@
+    @if (!useGrouping || groupDictionary.ContainsKey(group)) {
+        <f2><center>@("Отзывы и чаевые")</center></f2>
+        <f2><center>@("нетмонет")</center></f2>
+        <np />
+        <qrcode size="small" correction="low">@url@code@urlParams@urls["wp"]@wpid</qrcode>
+        <np />
+        <center>@("Наведите камеру на QR-код")</center>
+        <center>@("или введите " + @code + " на netmonet.co")</center>
         }
+    @* Netmonet (end) *@
 </doc>
 
 @helper Sales(IChequeTask chequeTask)

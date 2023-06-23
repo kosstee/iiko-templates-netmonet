@@ -10,8 +10,6 @@
 @{
     var order = Model.Order;
     var group = Model.CommonInfo.Group.Name;
-    var section = order.Table.Section.Name;
-    var terminal = Model.CommonInfo.CurrentTerminal;
     var transliterationMap = new Dictionary<string, string> {
         {"а", "a"},  {"б", "b"},  {"в", "v"},  {"г", "g"}, {"д", "d"},
         {"е", "e"},  {"ё", "e"},  {"ж", "zh"}, {"з", "z"}, {"и", "i"},
@@ -26,6 +24,13 @@
         {"t", "t"},  {"u", "u"},  {"v", "v"},  {"w", "w"}, {"x", "x"},
         {"y", "y"},  {"z", "z"}
         };
+
+    var codeMatches = Regex.Match(order.Waiter.GetNameOrEmpty(), ".*(\\d{6}).*");
+    string code = null;
+    bool codeFound = codeMatches.Groups.Count == 2;
+    if (codeFound) {
+        code = codeMatches.Groups[1].Value;
+        }
 
     var transliteratedName = string.Concat(order.Waiter.GetNameOrEmpty().ToLower().Select(c => {
         string saveString;
@@ -47,17 +52,9 @@
         {"guid", string.Concat("&checkout=", order.OrderId)},
         {"wp", "&wpid="}
         };
-    
-    var code = "XXXXXX";         // код заведения
-    var wpid = "XXXXXXX";        // WPID
-                                 //
-    bool useGroupCode = false;   // true для группового кода
-    bool qrPayOn = false;        // true для QR-pay
-    bool useGrouping = false;    // true для разделения по группам
-    
-    // groupDictionary заполняется только при useGrouping = true
-    // указать имя группы вместо "Группа 1", "Группа 2" и тд.
-    var groupDictionary = new Dictionary<string, Tuple<string, string, bool, bool>> {        
+ 
+    var groupDictionary = new Dictionary<string, Tuple<string, string, bool, bool>> {
+        // указать имя группы вместо "Группа 1", "Группа 2" и тд.
         {"Группа 1", Tuple.Create(
             "XXXXXX",    // код заведения
             "XXXXXXX",   // WPID
@@ -73,30 +70,21 @@
         };
 
     var netmonetHeader = "Отзывы и чаевые";
-    var url = "https://netmonet.co/tip/";    
-    var urlParams = string.Concat(urls["source"], urls["sum"], urls["number"], urls["table"], urls["name"]);
+    var url = "https://netmonet.co/tip/";
+    
+    var personalUrlParams = string.Concat(urls["source"], urls["sum"], urls["number"], urls["table"]);
+    var fallbackUrlParams = string.Concat(personalUrlParams, urls["name"]);
 
-    if (useGrouping && groupDictionary.ContainsKey(group)) {
-        code = groupDictionary[group].Item1;
-        wpid = groupDictionary[group].Item2;
-        useGroupCode = groupDictionary[group].Item3;
-        qrPayOn = groupDictionary[group].Item4;
-        }
+    if (groupDictionary.ContainsKey(group)) {
+        if (groupDictionary[group].Item3 && !codeFound) {
+            url = string.Concat(url, "group/");
+            }
 
-    var codeMatches = Regex.Match(order.Waiter.GetNameOrEmpty(), ".*(\\d{6}).*");
-    bool codeFound = codeMatches.Groups.Count == 2;
-    if (codeFound) {
-        code = codeMatches.Groups[1].Value;
-        urlParams = string.Concat(urls["source"], urls["sum"], urls["number"], urls["table"]);
-        }
-            
-    if (useGroupCode && !codeFound) {
-        url = string.Concat(url, "group/");
-        }
-  
-    if (qrPayOn) {
-        netmonetHeader = "Счет.Чаевые.Отзыв.";
-        urlParams = string.Concat(urlParams, urls["guid"]);
+        if (groupDictionary[group].Item4) {
+            netmonetHeader = "Счет.Чаевые.Отзыв.";
+            personalUrlParams = string.Concat(personalUrlParams, urls["guid"]);
+            fallbackUrlParams = string.Concat(fallbackUrlParams, urls["guid"]);
+            }
         }
 }
 
@@ -132,7 +120,6 @@
         <left>@string.Format(Resources.BillHeaderOrderExternalNumberPattern, order.ExternalNumber)</left>
     }
 
-    <left>@string.Format(Resources.BillHeaderWaiterPattern, order.Waiter.GetNameOrEmpty())</left>
     <left>@string.Format(Resources.BillHeaderWaiterPattern, @Regex.Replace(order.Waiter.GetNameOrEmpty(), "\\d{6}", ""))</left>
 
     @foreach (var clientInfo in
@@ -180,19 +167,21 @@
 
     @* Footer (begin) *@
     <np />
-
-    @* Netmonet (begin) *@
-    @if (!useGrouping || groupDictionary.ContainsKey(group)) {
-        <f2><center>@netmonetHeader</center></f2>
-        <f2><center>@("нетмонет")</center></f2>
-        <np />
-        <qrcode size="small" correction="low">@url@code@urlParams@urls["wp"]@wpid</qrcode>
-        <np />
-        <center>@("Наведите камеру на QR-код")</center>
-        <center>@("или введите " + @code + " на netmonet.co")</center>
+    @if (groupDictionary.ContainsKey(group)) {
+        if (codeFound) {
+            <f2><center>@netmonetHeader</center></f2>
+            <f2><center>@("нетмонет")</center></f2>
+            <qrcode size="small" correction="low">@url@code@personalUrlParams@urls["wp"]@groupDictionary[@group].Item2</qrcode>
+            <center>@("Наведите камеру на QR-код")</center>
+            <center>@("или введите " + @code + " на netmonet.co")</center>
+            } else {
+                <f2><center>@netmonetHeader</center></f2>
+                <f2><center>@("нетмонет")</center></f2>
+                <qrcode size="small" correction="low">@url@groupDictionary[@group].Item1@fallbackUrlParams@urls["wp"]@groupDictionary[@group].Item2</qrcode>
+                <center>@("Наведите камеру на QR-код")</center>
+                <center>@("или введите " + @groupDictionary[@group].Item1 + " на netmonet.co")</center>
+                }
         }
-    @* Netmonet (end) *@
-    
     @if (Model.AdditionalServiceChequeInfo == null)
     {
         <whitespace-preserve>@Raw(string.Join(Environment.NewLine, Model.Extensions.BeforeFooter))</whitespace-preserve>
